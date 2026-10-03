@@ -1,0 +1,208 @@
+diff --git a/backend/app/core/auth/router.py b/backend/app/core/auth/router.py
+index f64001f..383c302 100644
+--- a/backend/app/core/auth/router.py
++++ b/backend/app/core/auth/router.py
+@@ -538,11 +538,13 @@ async def create_user(
+     clinic_id = data.clinic_id if data.clinic_id else ctx.clinic_id
+     if clinic_id != ctx.clinic_id:
+         caller_is_admin = await db.execute(
+-            select(ClinicMembership.id).where(
++            select(ClinicMembership.id)
++            .where(
+                 ClinicMembership.user_id == ctx.user_id,
+                 ClinicMembership.clinic_id == clinic_id,
+                 ClinicMembership.role == "admin",
+             )
++            .limit(1)
+         )
+         if caller_is_admin.scalar_one_or_none() is None:
+             raise HTTPException(
+diff --git a/backend/app/modules/agenda/CHANGELOG.md b/backend/app/modules/agenda/CHANGELOG.md
+index a0514c6..eb54a88 100644
+--- a/backend/app/modules/agenda/CHANGELOG.md
++++ b/backend/app/modules/agenda/CHANGELOG.md
+@@ -2,6 +2,10 @@
+ 
+ ## Unreleased
+ 
++- fix(#590): `validate_professional_access` tolerates duplicated
++  membership rows (`.limit(1)` existence read, same fix as #598 for
++  orthodontics). `clinic_memberships` has no unique `(clinic_id, user_id)`
++  constraint, so a duplicate used to 500 with `MultipleResultsFound`.
+ - fix(#522): `useCalendarBounds` asked the availability endpoint for the
+   previous day's open hours for clinics east of UTC — the calendar hands it
+   local midnights and it rendered them with `toISOString()`. Now uses
+diff --git a/backend/app/modules/agenda/service.py b/backend/app/modules/agenda/service.py
+index f936cd7..72161d8 100644
+--- a/backend/app/modules/agenda/service.py
++++ b/backend/app/modules/agenda/service.py
+@@ -312,11 +312,13 @@ class AppointmentService:
+         db: AsyncSession, clinic_id: UUID, professional_id: UUID
+     ) -> bool:
+         result = await db.execute(
+-            select(ClinicMembership.id).where(
++            select(ClinicMembership.id)
++            .where(
+                 ClinicMembership.user_id == professional_id,
+                 ClinicMembership.clinic_id == clinic_id,
+                 ClinicMembership.is_professional.is_(True),
+             )
++            .limit(1)
+         )
+         return result.scalar_one_or_none() is not None
+ 
+diff --git a/backend/app/modules/schedules/CHANGELOG.md b/backend/app/modules/schedules/CHANGELOG.md
+index 8ecf473..3df16f4 100644
+--- a/backend/app/modules/schedules/CHANGELOG.md
++++ b/backend/app/modules/schedules/CHANGELOG.md
+@@ -2,6 +2,11 @@
+ 
+ ## Unreleased
+ 
++- fix(#590): `ProfessionalHoursService.is_professional` tolerates
++  duplicated membership rows (`.limit(1)` existence read, same fix as
++  #598 for orthodontics). `clinic_memberships` has no unique
++  `(clinic_id, user_id)` constraint, so a duplicate used to 500 with
++  `MultipleResultsFound`.
+ - fix(#522): the clinic-hours and professional-schedule pages defaulted
+   `start_date` / `end_date` and computed "today" from the UTC day. Now use
+   `toISODate`.
+diff --git a/backend/app/modules/schedules/services/professional_hours.py b/backend/app/modules/schedules/services/professional_hours.py
+index 95e9e1f..e115841 100644
+--- a/backend/app/modules/schedules/services/professional_hours.py
++++ b/backend/app/modules/schedules/services/professional_hours.py
+@@ -23,11 +23,13 @@ class ProfessionalHoursService:
+     @staticmethod
+     async def is_professional(db: AsyncSession, clinic_id: UUID, user_id: UUID) -> bool:
+         result = await db.execute(
+-            select(ClinicMembership.id).where(
++            select(ClinicMembership.id)
++            .where(
+                 ClinicMembership.clinic_id == clinic_id,
+                 ClinicMembership.user_id == user_id,
+                 ClinicMembership.is_professional.is_(True),
+             )
++            .limit(1)
+         )
+         return result.scalar_one_or_none() is not None
+ 
+diff --git a/backend/app/modules/treatment_plan/CHANGELOG.md b/backend/app/modules/treatment_plan/CHANGELOG.md
+index feefff5..d022e68 100644
+--- a/backend/app/modules/treatment_plan/CHANGELOG.md
++++ b/backend/app/modules/treatment_plan/CHANGELOG.md
+@@ -2,6 +2,10 @@
+ 
+ ## Unreleased
+ 
++- fix(#590): the professional-membership validation tolerates duplicated
++  membership rows (`.limit(1)` existence read, same fix as #598 for
++  orthodontics). `clinic_memberships` has no unique `(clinic_id, user_id)`
++  constraint, so a duplicate used to 500 with `MultipleResultsFound`.
+ - feat(#232): sidebar entry grouped under the Clinical header (`nav.section` "clinical").
+ - refactor(#337): owns `AppointmentTreatment` (`appointment_treatments`) — the NOT NULL planned-item FK always made it the plan's visit bridge; the model's backref installs `Appointment.treatments`, the provider gained `attach_planned_items`/`visit_note_row`, and all three of the table's FKs are now declarable. No schema migration; future ALTERs live on the tp branch.
+ 
+diff --git a/backend/app/modules/treatment_plan/service.py b/backend/app/modules/treatment_plan/service.py
+index 0d1d056..85e9d9b 100644
+--- a/backend/app/modules/treatment_plan/service.py
++++ b/backend/app/modules/treatment_plan/service.py
+@@ -32,11 +32,13 @@ async def _validate_professional_in_clinic(
+     line with the other validation errors in this module.
+     """
+     result = await db.execute(
+-        select(ClinicMembership.id).where(
++        select(ClinicMembership.id)
++        .where(
+             ClinicMembership.clinic_id == clinic_id,
+             ClinicMembership.user_id == user_id,
+             ClinicMembership.is_professional.is_(True),
+         )
++        .limit(1)
+     )
+     if result.scalar_one_or_none() is None:
+         raise ValueError("Invalid professional for this clinic")
+diff --git a/backend/tests/test_duplicate_membership_checks.py b/backend/tests/test_duplicate_membership_checks.py
+new file mode 100644
+index 0000000..d73cfe9
+--- /dev/null
++++ b/backend/tests/test_duplicate_membership_checks.py
+@@ -0,0 +1,80 @@
++"""Duplicate clinic_memberships rows must not break membership checks.
++
++``clinic_memberships`` has no unique ``(clinic_id, user_id)`` constraint,
++so a duplicated row used to make every ``scalar_one_or_none()`` existence
++check raise ``MultipleResultsFound`` and 500 the request — the bug
++reported for orthodontics in #590. PR #598 fixed the orthodontics
++checks; these tests pin the same tolerance for the remaining existence
++checks (treatment_plan, schedules professional hours, agenda), which
++share the identical query shape.
++"""
++
++from __future__ import annotations
++
++from uuid import uuid4
++
++import pytest
++from sqlalchemy.ext.asyncio import AsyncSession
++
++from app.core.auth.models import Clinic, ClinicMembership, User
++from app.core.auth.service import hash_password
++from app.modules.agenda.service import AppointmentService
++from app.modules.schedules.services.professional_hours import ProfessionalHoursService
++from app.modules.treatment_plan.service import _validate_professional_in_clinic
++
++
++async def _professional_with_duplicate_membership(db_session: AsyncSession, clinic_id) -> User:
++    user = User(
++        id=uuid4(),
++        email=f"dup-{uuid4().hex[:6]}@t.c",
++        password_hash=hash_password("TestPass1234"),
++        first_name="Dup",
++        last_name="Member",
++        is_active=True,
++    )
++    db_session.add(user)
++    await db_session.flush()
++    for _ in range(2):
++        db_session.add(
++            ClinicMembership(id=uuid4(), user_id=user.id, clinic_id=clinic_id, role="dentist")
++        )
++    await db_session.commit()
++    return user
++
++
++@pytest.mark.asyncio
++async def test_treatment_plan_professional_check_tolerates_duplicate_membership(
++    db_session: AsyncSession, test_clinic: Clinic
++):
++    doc = await _professional_with_duplicate_membership(db_session, test_clinic.id)
++    # Must not raise MultipleResultsFound.
++    await _validate_professional_in_clinic(db_session, test_clinic.id, doc.id)
++
++
++@pytest.mark.asyncio
++async def test_professional_hours_is_professional_tolerates_duplicate_membership(
++    db_session: AsyncSession, test_clinic: Clinic
++):
++    doc = await _professional_with_duplicate_membership(db_session, test_clinic.id)
++    assert await ProfessionalHoursService.is_professional(db_session, test_clinic.id, doc.id)
++
++
++@pytest.mark.asyncio
++async def test_agenda_professional_access_tolerates_duplicate_membership(
++    db_session: AsyncSession, test_clinic: Clinic
++):
++    doc = await _professional_with_duplicate_membership(db_session, test_clinic.id)
++    assert await AppointmentService.validate_professional_access(db_session, test_clinic.id, doc.id)
++
++
++@pytest.mark.asyncio
++async def test_membership_checks_still_reject_non_members(
++    db_session: AsyncSession, test_clinic: Clinic
++):
++    stranger = uuid4()
++    with pytest.raises(ValueError):
++        await _validate_professional_in_clinic(db_session, test_clinic.id, stranger)
++    assert not await ProfessionalHoursService.is_professional(db_session, test_clinic.id, stranger)
++    assert not await AppointmentService.validate_professional_access(
++        db_session, test_clinic.id, stranger
++    )
