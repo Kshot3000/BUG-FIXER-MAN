@@ -8,8 +8,7 @@ Quality is existential in 2026: programs are actively cracking down on AI-genera
 
 | Platform | Site | How it pays | Notes |
 |---|---|---|---|
-| Immunefi | immunefi.com/explore | Per-bug, crypto, after triage; code PoC required | 171 live programs at verification; many require KYC + OFAC screening |
-| Code4rena | code4rena.com/contests | Time-boxed audit contests, USDC pot split by severity/uniqueness | Anyone can register as a Warden, no KYC for public contests — most accessible big-money route |
+| Immunefi | immunefi.com/explore | Per-bug, crypto, after triage; code PoC required | 171 live programs at verification; many require KYC + OFAC screening. Also absorbing Code4rena's customers and wardens (see Dead, below) — this is where the contest crowd moved |
 | Sherlock | sherlock.xyz · audits.sherlock.xyz | Contests + bounties, USDC | Payout gate: USDC withheld until 2 valid lifetime issues submitted; only High/Medium pay |
 | Cantina | cantina.xyz/competitions | Competitions + bounties, USDC | Best work is curated/invite + KYC; build reputation elsewhere first |
 | CodeHawks | codehawks.cyfrin.io | Real contests pay USDC; **First Flights pay XP only ($0)** | Best beginner on-ramp: learn the report format on First Flights, then paid contests |
@@ -34,6 +33,7 @@ Quality is existential in 2026: programs are actively cracking down on AI-genera
 
 ## ☠️ Dead — do not chase
 
+- **Code4rena** — announced its wind-down on 2026-05-13; active contests/bounties run to completion but **no new accounts can be created** (confirmed 2026-10-02). Immunefi is absorbing its customers and wardens — hunt there instead
 - **Algora** — pivoted to recruiting; bounty pages 404
 - **Polar.sh** — now a billing platform; issue funding gone
 - **OnlyDust** — shut down
@@ -41,6 +41,6 @@ Quality is existential in 2026: programs are actively cracking down on AI-genera
 
 ## Realistic ranking
 
-1. **No barriers, start today:** CodeHawks First Flights (learn, $0) → Code4rena + Sherlock public contests (USDC) + Opire / Paid-Bounty issues (small, PayPal — verify funder first)
+1. **No barriers, start today:** CodeHawks First Flights (learn, $0) → Sherlock + Cantina public contests (USDC) + Opire / Paid-Bounty issues (small, PayPal — verify funder first)
 2. **Best PayPal fit:** HackerOne and Bugcrowd public programs
-3. **Highest ceiling, hardest:** Immunefi + HackenProof — requires working Foundry PoCs and, on Immunefi, KYC (a sign-up step Kyle does himself)
+3. **Highest ceiling, hardest:** Immunefi (now also home to Code4rena's migrated programs and wardens) + HackenProof — requires working Foundry PoCs and, on Immunefi, KYC (a sign-up step Kyle does himself)

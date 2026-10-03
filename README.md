@@ -24,7 +24,7 @@ No spam. No mass PRs. No invented bugs. One excellent, verified fix beats ten no
 
 ## Paid avenues we work
 
-See **[PAID-AVENUES.md](PAID-AVENUES.md)** — the verified map of where bug work actually pays (Immunefi, Code4rena, Sherlock, HackerOne, Bugcrowd, HackenProof, Opire paid GitHub issues, and more), including which once-popular platforms are dead and not worth chasing.
+See **[PAID-AVENUES.md](PAID-AVENUES.md)** — the verified map of where bug work actually pays (Immunefi, Sherlock, HackerOne, Bugcrowd, HackenProof, Opire paid GitHub issues, and more), including which once-popular platforms are dead and not worth chasing.
 
 ## Findings
 
