@@ -1,0 +1,84 @@
+From d7868f08489de901989051dbcc79435911b1fcba Mon Sep 17 00:00:00 2001
+From: Kshot3000 <kshot9000@gmail.com>
+Date: Sat, 3 Oct 2026 02:16:44 +0000
+Subject: [PATCH] fix: ignore TS this parameters in prefer-arrow-callback
+
+Function expressions that declare a TypeScript `this` parameter cannot be converted to arrow functions, which cannot declare one, so the rule should not report them. The autofixer already bailed out on this shape; the report itself was the remaining bug.
+
+Fixes #21155
+---
+ docs/src/rules/prefer-arrow-callback.md  |  5 +++--
+ lib/rules/prefer-arrow-callback.js       |  5 +++++
+ tests/lib/rules/prefer-arrow-callback.js | 11 ++++++-----
+ 3 files changed, 14 insertions(+), 7 deletions(-)
+
+diff --git a/docs/src/rules/prefer-arrow-callback.md b/docs/src/rules/prefer-arrow-callback.md
+index 6e5f72a..d32348c 100644
+--- a/docs/src/rules/prefer-arrow-callback.md
++++ b/docs/src/rules/prefer-arrow-callback.md
+@@ -74,8 +74,6 @@ Examples of **incorrect** TypeScript code for this rule:
+ /*eslint prefer-arrow-callback: "error"*/
+ 
+ foo(function bar(a: string) { a; });
+-
+-test('foo', function (this: any) {});
+ ```
+ 
+ :::
+@@ -90,6 +88,9 @@ Examples of **correct** TypeScript code for this rule:
+ foo((a: string) => a);
+ 
+ const foo = function foo(bar: any) {};
++
++// A `this` parameter cannot be declared on an arrow function, so function expressions that declare one are not reported.
++test('foo', function (this: any) {});
+ ```
+ 
+ :::
+diff --git a/lib/rules/prefer-arrow-callback.js b/lib/rules/prefer-arrow-callback.js
+index 9709d6a..7c0be13 100644
+--- a/lib/rules/prefer-arrow-callback.js
++++ b/lib/rules/prefer-arrow-callback.js
+@@ -277,6 +277,11 @@ module.exports = {
+ 					return;
+ 				}
+ 
++				// Skip if it declares a TypeScript `this` parameter, which arrow functions cannot have.
++				if (node.params.length && node.params[0].name === "this") {
++					return;
++				}
++
+ 				// Skip recursive functions.
+ 				const nameVar = sourceCode.getDeclaredVariables(node)[0];
+ 
+diff --git a/tests/lib/rules/prefer-arrow-callback.js b/tests/lib/rules/prefer-arrow-callback.js
+index c91a382..c24ae0a 100644
+--- a/tests/lib/rules/prefer-arrow-callback.js
++++ b/tests/lib/rules/prefer-arrow-callback.js
+@@ -319,6 +319,12 @@ ruleTesterTypeScript.run("prefer-arrow-callback", rule, {
+ 		"foo((function() {}).bind.bar)",
+ 		"foo((function() { this.bar(); }).bind(obj).bind(this))",
+ 		"test('clean', function (this: any) { this.foo = 'Cleaned!';});",
++		"test('foo', function (this: any) {});",
++		"foo(function (this: Foo, a: string) { return a; });",
++		{
++			code: "test('foo', function (this: any) {});",
++			options: [{ allowUnboundThis: false }],
++		},
+ 		"obj.test('clean', function (foo) { this.foo = 'Cleaned!'; });",
+ 	],
+ 	invalid: [
+@@ -528,10 +534,5 @@ ruleTesterTypeScript.run("prefer-arrow-callback", rule, {
+ 			output: "foo(():string => { return 'foo' });",
+ 			errors,
+ 		},
+-		{
+-			code: "test('foo', function (this: any) {});",
+-			output: null,
+-			errors,
+-		},
+ 	],
+ });
+-- 
+2.43.0
+
