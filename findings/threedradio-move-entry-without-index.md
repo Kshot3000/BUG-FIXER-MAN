@@ -1,0 +1,13 @@
+# ThreeDRadio intranet-backend-django — playlist `move` crashes on entries without an index (#92)
+
+- **Project / repo:** https://github.com/ThreeDRadio/intranet-backend-django (Django/DRF API for Three D Radio's intranet, Python, active — production Postgres)
+- **Issue / bounty:** https://github.com/ThreeDRadio/intranet-backend-django/issues/92 — Sentry-reported production crash (INTRANET-BACKEND-DJANGO-A). No bounty posted — fix offered freely, tips welcome.
+- **Found:** 2026-10-02
+- **Severity / type:** availability / correctness — 500 TypeError on a legitimate playlist reorder action whenever the playlist contains entries without an index.
+- **Bug:** `PlaylistEntry.index` is nullable (`IntegerField(null=True)`), but `PlaylistEntryViewSet.move` computed the largest index via `.values("index").order_by("index").last()["index"]`. On Postgres, `ORDER BY ... ASC` sorts NULLS LAST, so an unindexed entry could be returned and `largest_idx` became `None`, crashing `if to_idx > largest_idx:` with `TypeError: '>' not supported between instances of 'int' and 'NoneType'` — the exact Sentry trace. With no indexed entries at all it crashes on any database, and a `{"to": null}` body crashed even earlier at `to_idx <= 0`.
+- **Proof:** Local reproduction with the Django test client before the fix: a playlist whose entries have no index raised the exact Sentry TypeError at the same line (`playlist/views.py`, `if to_idx > largest_idx:`); `{"to": null}` raised `TypeError: '<=' not supported between 'NoneType' and 'int'`. Patch: `fixes/threedradio-move-entry-without-index.patch`.
+- **Fix:** largest index via `Max("index")` over indexed entries only (400 when a playlist has no indexed entries); moving an unindexed entry returns 400; null/non-integer `to` returns 400. Range-shift logic untouched.
+- **Tests:** 4 new regression tests in `playlist/test_playlistentry.py` — `playlist.test_playlistentry` 15/15 pass; full suite 126 tests with only the same 5 errors that fail on the unmodified tree in this environment (Postgres-behaviour tests run locally on SQLite — no Postgres available here; the project's CI runs Postgres 16, stated openly in the PR). Ruff check + format clean on touched files.
+- **Submission:** PR https://github.com/ThreeDRadio/intranet-backend-django/pull/93 — submitted 2026-10-02, OPEN/MERGEABLE at submission. Fork: https://github.com/Kshot3000/intranet-backend-django branch `fix/move-entry-without-index-92` (commit 4318b11).
+- **Payment:** requested: none (no bounty posted; tips welcome via hub README addresses) | received: none
+- **Disclosure:** n/a — publicly reported production bug in the project's own issue tracker (Sentry-linked), no vulnerability details.

@@ -1,0 +1,159 @@
+diff --git a/playlist/test_playlistentry.py b/playlist/test_playlistentry.py
+index abfd4ba..f6b7c04 100644
+--- a/playlist/test_playlistentry.py
++++ b/playlist/test_playlistentry.py
+@@ -167,6 +167,97 @@ class PlaylistEntryViewsetTest(APITestCase):
+         response = client.post(url, {"to": 5}, format="json")
+         self.assertEqual(response.status_code, 400)
+ 
++    def test_move_to_null_throws_400(self):
++        client = APIClient()
++        client.force_authenticate(user=self.user)
++        url = reverse("PlaylistEntry-move", kwargs={"pk": 100})
++        response = client.post(url, {"to": None}, format="json")
++        self.assertEqual(response.status_code, 400)
++
++    def test_move_with_unindexed_entry_present(self):
++        # Regression test for #92: an entry without an index must not break
++        # moving the indexed entries (on Postgres the old largest-index
++        # lookup could return the unindexed entry and crash).
++        PlaylistEntry.objects.create(
++            playlist=self.playlist_instance,
++            artist="unindexed artist",
++            title="unindexed title",
++            local=False,
++            female=False,
++            australian=False,
++            newRelease=False,
++            index=None,
++            id=110,
++        )
++        client = APIClient()
++        client.force_authenticate(user=self.user)
++        url = reverse("PlaylistEntry-move", kwargs={"pk": 99})
++        response = client.post(url, {"to": 2}, format="json")
++        self.assertEqual(response.status_code, 204)
++        indexed_order = list(
++            PlaylistEntry.objects.filter(
++                playlist=self.playlist_instance, index__isnull=False
++            )
++            .order_by("index")
++            .values_list("id", flat=True)
++        )
++        self.assertEqual(
++            indexed_order,
++            [
++                self.playlist_entry_2.id,
++                self.playlist_entry_1.id,
++                self.playlist_entry_3.id,
++                self.playlist_entry_4.id,
++            ],
++        )
++
++    def test_move_entry_without_index_throws_400(self):
++        unindexed = PlaylistEntry.objects.create(
++            playlist=self.playlist_instance,
++            artist="unindexed artist",
++            title="unindexed title",
++            local=False,
++            female=False,
++            australian=False,
++            newRelease=False,
++            index=None,
++            id=110,
++        )
++        client = APIClient()
++        client.force_authenticate(user=self.user)
++        url = reverse("PlaylistEntry-move", kwargs={"pk": unindexed.id})
++        response = client.post(url, {"to": 1}, format="json")
++        self.assertEqual(response.status_code, 400)
++
++    def test_move_in_playlist_with_no_indexes_throws_400(self):
++        # Regression test for #92: with no indexed entries at all there is
++        # no valid move target; this used to crash with
++        # TypeError: '>' not supported between 'int' and 'NoneType'.
++        playlist = Playlist.objects.create(
++            id=1000,
++            show=self.show,
++            date="2026-01-02",
++            australianQuota=20,
++            localQuota=20,
++            femaleQuota=40,
++        )
++        entry = PlaylistEntry.objects.create(
++            playlist=playlist,
++            artist="unindexed artist",
++            title="unindexed title",
++            local=False,
++            female=False,
++            australian=False,
++            newRelease=False,
++            index=None,
++            id=111,
++        )
++        client = APIClient()
++        client.force_authenticate(user=self.user)
++        url = reverse("PlaylistEntry-move", kwargs={"pk": entry.id})
++        response = client.post(url, {"to": 1}, format="json")
++        self.assertEqual(response.status_code, 400)
++
+     def test_move_forward_1(self):
+         client = APIClient()
+         client.force_authenticate(user=self.user)
+diff --git a/playlist/views.py b/playlist/views.py
+index 94edc14..6c71b1c 100644
+--- a/playlist/views.py
++++ b/playlist/views.py
+@@ -2,7 +2,7 @@ import csv
+ from datetime import date
+ 
+ from django.db import transaction, DatabaseError
+-from django.db.models import Count
++from django.db.models import Count, Max
+ from django.http import HttpResponse
+ from django.shortcuts import get_object_or_404, render
+ from django_filters.rest_framework import DjangoFilterBackend
+@@ -327,25 +327,33 @@ class PlaylistEntryViewSet(viewsets.ModelViewSet):
+ 
+         to_idx = request.data.get("to")
+ 
+-        if to_idx <= 0:
++        # "to" can be present but null (or another non-integer JSON value);
++        # comparing those against ints raises TypeError instead of a 400.
++        if not isinstance(to_idx, int) or isinstance(to_idx, bool) or to_idx <= 0:
+             return Response({"error": "Invalid move to index."}, status=400)
+ 
+         # Next, get all entries for this playlist and check the latest index.
+         # Send back a bad request if the user tries to move this one outside
+-        # of the 1 -> largest idx range
+-        largest_idx = (
+-            PlaylistEntry.objects.filter(playlist=self.get_object().playlist)
+-            .values("index")
+-            .order_by("index")
+-            .last()
+-        )["index"]
+-
+-        if to_idx > largest_idx:
++        # of the 1 -> largest idx range.
++        # PlaylistEntry.index is nullable: entries without an index must not
++        # count towards the largest index. The old order_by("index").last()
++        # could return an unindexed entry on Postgres (NULLS LAST), making
++        # largest_idx None and crashing the comparison below (issue #92).
++        largest_idx = PlaylistEntry.objects.filter(
++            playlist=self.get_object().playlist, index__isnull=False
++        ).aggregate(Max("index"))["index__max"]
++
++        if largest_idx is None or to_idx > largest_idx:
+             return Response({"error": "Invalid move to index."}, status=400)
+ 
+         subject = self.get_object()
+         from_idx = subject.index
+ 
++        if from_idx is None:
++            return Response(
++                {"error": "Cannot move an entry without an index."}, status=400
++            )
++
+         if from_idx == to_idx:  # Nice try
+             return Response({}, status=204)
+ 
