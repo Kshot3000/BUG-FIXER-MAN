@@ -1,0 +1,193 @@
+diff --git a/.changeset/user-op-receipt-later-wait.md b/.changeset/user-op-receipt-later-wait.md
+new file mode 100644
+index 0000000..67c82f2
+--- /dev/null
++++ b/.changeset/user-op-receipt-later-wait.md
+@@ -0,0 +1,5 @@
++---
++"viem": patch
++---
++
++Fixed `waitForUserOperationReceipt` hanging until timeout on a later call for the same hash after concurrent calls for that hash had settled.
+diff --git a/src/account-abstraction/actions/bundler/waitForUserOperationReceipt.test.ts b/src/account-abstraction/actions/bundler/waitForUserOperationReceipt.test.ts
+index 68243c8..121c907 100644
+--- a/src/account-abstraction/actions/bundler/waitForUserOperationReceipt.test.ts
++++ b/src/account-abstraction/actions/bundler/waitForUserOperationReceipt.test.ts
+@@ -61,6 +61,52 @@ describe('entryPointVersion: 0.8', async () => {
+     expect(receipt.success).toBeTruthy()
+   })
+ 
++  test('behavior: resolves a later wait after concurrent waits', async () => {
++    const authorization = await signAuthorization(client, account.authorization)
++    const hash = await sendUserOperation(bundlerClient, {
++      account,
++      calls: [
++        {
++          to: '0x0000000000000000000000000000000000000000',
++          value: parseEther('1'),
++        },
++      ],
++      authorization,
++      ...fees,
++    })
++
++    const [receipt] = await Promise.all([
++      waitForUserOperationReceipt(bundlerClient, {
++        hash,
++      }),
++      waitForUserOperationReceipt(bundlerClient, {
++        hash,
++      }),
++      (async () => {
++        // Simulate some delay to send the bundle + mine block.
++        await wait(500)
++        await bundlerClient.request({
++          method: 'debug_bundler_sendBundleNow',
++        })
++        await mine(client, {
++          blocks: 1,
++        })
++      })(),
++    ])
++
++    expect(receipt.success).toBeTruthy()
++
++    // A later wait for the same hash must poll again and resolve.
++    // Before the fix, it never polled and only failed on timeout.
++    const laterReceipt = await waitForUserOperationReceipt(bundlerClient, {
++      hash,
++      timeout: 10_000,
++    })
++
++    expect(laterReceipt.userOpHash).toBe(hash)
++    expect(laterReceipt.success).toBeTruthy()
++  })
++
+   test('args: pollingInterval', async () => {
+     const authorization = await signAuthorization(client, account.authorization)
+     const hash = await sendUserOperation(bundlerClient, {
+diff --git a/src/account-abstraction/actions/bundler/waitForUserOperationReceipt.ts b/src/account-abstraction/actions/bundler/waitForUserOperationReceipt.ts
+index d2c71cf..efb04c3 100644
+--- a/src/account-abstraction/actions/bundler/waitForUserOperationReceipt.ts
++++ b/src/account-abstraction/actions/bundler/waitForUserOperationReceipt.ts
+@@ -84,62 +84,72 @@ export function waitForUserOperationReceipt(
+     hash,
+   ])
+ 
+-  return new Promise((resolve, reject) => {
+-    const unobserve = observe(observerId, { resolve, reject }, (emit) => {
+-      const done = (fn: () => void) => {
+-        unpoll()
+-        fn()
+-        unobserve()
+-      }
++  let unobserve: () => void
+ 
+-      const timeoutId = timeout
+-        ? setTimeout(
+-            () =>
++  const promise = new Promise<WaitForUserOperationReceiptReturnType>(
++    (resolve, reject) => {
++      unobserve = observe(observerId, { resolve, reject }, (emit) => {
++        const done = (fn: () => void) => {
++          unpoll()
++          fn()
++          unobserve()
++        }
++
++        const timeoutId = timeout
++          ? setTimeout(
++              () =>
++                done(() =>
++                  emit.reject(
++                    new WaitForUserOperationReceiptTimeoutError({ hash }),
++                  ),
++                ),
++              timeout,
++            )
++          : undefined
++
++        const unpoll = poll(
++          async () => {
++            if (retryCount && count >= retryCount) {
++              clearTimeout(timeoutId)
+               done(() =>
+                 emit.reject(
+                   new WaitForUserOperationReceiptTimeoutError({ hash }),
+                 ),
+-              ),
+-            timeout,
+-          )
+-        : undefined
+-
+-      const unpoll = poll(
+-        async () => {
+-          if (retryCount && count >= retryCount) {
+-            clearTimeout(timeoutId)
+-            done(() =>
+-              emit.reject(
+-                new WaitForUserOperationReceiptTimeoutError({ hash }),
+-              ),
+-            )
+-          }
++              )
++            }
+ 
+-          try {
+-            const receipt = await getAction(
+-              client,
+-              getUserOperationReceipt,
+-              'getUserOperationReceipt',
+-            )({ hash })
+-            clearTimeout(timeoutId)
+-            done(() => emit.resolve(receipt))
+-          } catch (err) {
+-            const error = err as GetUserOperationReceiptErrorType
+-            if (error.name !== 'UserOperationReceiptNotFoundError') {
++            try {
++              const receipt = await getAction(
++                client,
++                getUserOperationReceipt,
++                'getUserOperationReceipt',
++              )({ hash })
+               clearTimeout(timeoutId)
+-              done(() => emit.reject(error))
++              done(() => emit.resolve(receipt))
++            } catch (err) {
++              const error = err as GetUserOperationReceiptErrorType
++              if (error.name !== 'UserOperationReceiptNotFoundError') {
++                clearTimeout(timeoutId)
++                done(() => emit.reject(error))
++              }
+             }
+-          }
+ 
+-          count++
+-        },
+-        {
+-          emitOnBegin: true,
+-          interval: pollingInterval,
+-        },
+-      )
++            count++
++          },
++          {
++            emitOnBegin: true,
++            interval: pollingInterval,
++          },
++        )
++
++        return unpoll
++      })
++    },
++  )
+ 
+-      return unpoll
+-    })
+-  })
++  // Remove this caller's listener once its promise settles. `done` only
++  // unobserves the caller that started the poll, so a listener from a
++  // concurrent caller would otherwise stay cached and block every later
++  // wait for the same hash from polling.
++  return promise.finally(() => unobserve())
+ }
