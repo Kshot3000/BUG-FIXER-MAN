@@ -4,7 +4,7 @@
 - **Issue:** #1361 — "zsh: multiple parameter subscripts fail to parse" https://github.com/mvdan/sh/issues/1361
 - **Submission:** PR #1430 https://github.com/mvdan/sh/pull/1430 (fork Kshot3000/sh, branch `fix-zsh-chained-subscripts`, two commits per the repo's test-first convention)
 - **Bounty:** none — fix offered freely, tips welcome via this repo's README.
-- **Status:** OPEN, awaiting maintainer review.
+- **Status:** **CLOSED unmerged 2026-10-04 by mvdan** — "I'm not really interested in drive-by AI patches unless the author is an active user or contributor to the project." No reply sent, no argument; closed per the maintainer's stated policy. Lesson logged: check a repo's stance on drive-by patches before investing in a fix there.
 
 ## Bug
 
