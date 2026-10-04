@@ -2,9 +2,9 @@
 
 - **Project:** fivetran/great_expectations — https://github.com/fivetran/great_expectations
 - **Issue:** #12288 — "ExpectTableColumnsToMatchSet with column_set=None raises on SQL backends but is treated as an empty set on pandas" https://github.com/fivetran/great_expectations/issues/12288 (filed 2026-10-04, unclaimed, no competing fix PR)
-- **Submission:** verified diagnosis + root cause + fix posted on the issue: https://github.com/fivetran/great_expectations/issues/12288#issuecomment-5983797548 — tested patch ready on fork branch `Kshot3000/great_expectations@fix/match-set-none-sql` (commit d42d0e4). **PR NOT opened yet: the repo's AGENTS.md makes the Contributor License Agreement a hard stop for agents — Kyle must sign the GE CLA personally (Google form linked from the repo CLA.md) before the PR can be opened; then it opens from that branch immediately.**
+- **Submission:** verified diagnosis + root cause + fix posted on the issue: https://github.com/fivetran/great_expectations/issues/12288#issuecomment-5983797548 — **PR OPENED 2026-10-04 after Kyle signed the individual CLA: https://github.com/fivetran/great_expectations/pull/12289** (from fork branch `Kshot3000/great_expectations@fix/match-set-none-sql`, commit d42d0e4, base `develop`).
 - **Bounty:** none — standards/OSS fix offered freely.
-- **Status:** AWAITING KYLE (CLA) + maintainer triage of #12288.
+- **Status:** PR #12289 OPEN, awaiting CI + maintainer review.
 
 ## Bug
 
