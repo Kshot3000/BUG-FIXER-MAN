@@ -1,0 +1,51 @@
+From 405d96a3ebb60fac0d2177bd597faf80a47a4d4f Mon Sep 17 00:00:00 2001
+From: Kshot3000 <kshot9000@gmail.com>
+Date: Sun, 4 Oct 2026 20:27:47 +0000
+Subject: [PATCH] qt: create closing_warning_callbacks early in
+ ElectrumWindow.__init__
+
+closeEvent() unconditionally iterates self.closing_warning_callbacks
+(via _show_closing_warnings), but the list was only created near the
+end of __init__, after the window is already shown (showMaximized)
+and its close shortcuts are armed. A close delivered before that
+point -- e.g. the user closing the window while it is still being
+constructed -- crashed with
+
+  AttributeError: 'ElectrumWindow' object has no attribute
+  'closing_warning_callbacks'
+
+instead of closing (crash report #10969, Electrum 4.8.2).
+
+Create the list together with the other early attribute
+initialisations at the top of __init__. The two
+register_closing_warning_callback calls stay where they were.
+---
+ electrum/gui/qt/main_window.py | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/electrum/gui/qt/main_window.py b/electrum/gui/qt/main_window.py
+index aeb7458..240a788 100644
+--- a/electrum/gui/qt/main_window.py
++++ b/electrum/gui/qt/main_window.py
+@@ -190,6 +190,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
+         self.tray = gui_object.tray
+         self.app = gui_object.app
+         self._cleaned_up = False
++        self.closing_warning_callbacks = []  # type: List[Callable[[], Optional[str]]]
+         self.qr_window = None
+         self.pluginsdialog = None
+         self.showing_cert_mismatch_error = False
+@@ -278,7 +279,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
+         # network callbacks
+         self.register_callbacks()
+         # wallet closing warning callbacks
+-        self.closing_warning_callbacks = []  # type: List[Callable[[], Optional[str]]]
++        # (the list itself is created early in __init__: the window can be
++        #  shown and closed before this point is reached, and closeEvent
++        #  iterates the list -- see #10969)
+         self.register_closing_warning_callback(self._check_ongoing_submarine_swaps_callback)
+         self.register_closing_warning_callback(self._check_ongoing_force_closures)
+         # banner may already be there
+-- 
+2.43.0
+
