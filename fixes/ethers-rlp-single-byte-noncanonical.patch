@@ -1,0 +1,88 @@
+From 1f43dc25a909cc339dc18d52293d374d8b9b877e Mon Sep 17 00:00:00 2001
+From: Kyle Cox <kshot9000@gmail.com>
+Date: Mon, 5 Oct 2026 04:30:23 +0000
+Subject: [PATCH] fix(rlp): reject single byte below 0x80 wrapped in a string
+ header
+
+RLP encodes a single byte below 0x80 as itself; decodeRlp accepted
+the same byte wrapped in a string header (e.g. 0x8118), a second
+encoding the library's own encoder never produces. _decode now
+throws INVALID_ARGUMENT for a one-byte string payload below 0x80
+in both the short-form and long-form string branches, matching
+the rlp-single-byte-minimal rule. Fixes #5194.
+---
+ src.ts/_tests/test-rlp.ts  | 31 +++++++++++++++++++++++++++++++
+ src.ts/utils/rlp-decode.ts |  8 ++++++++
+ 2 files changed, 39 insertions(+)
+
+diff --git a/src.ts/_tests/test-rlp.ts b/src.ts/_tests/test-rlp.ts
+index 9c02dbd..febdd04 100644
+--- a/src.ts/_tests/test-rlp.ts
++++ b/src.ts/_tests/test-rlp.ts
+@@ -83,6 +83,37 @@ describe("Test bad RLP Data", function() {
+                 error.length === 7)
+         });
+     });
++
++    it ("correctlyfails decoding a single byte wrapped in a string header", function() {
++        assert.throws(() => {
++            // 81 18: the byte 0x18 is encoded as itself; the string
++            // header makes this a second encoding of the same value
++            decodeRlp("0x8118");
++        }, (error: any) => {
++            return (error.code === "INVALID_ARGUMENT" &&
++                error.message.match(/^non-canonical rlp/) &&
++                error.argument === "data")
++        });
++    });
++
++    it ("correctlyfails decoding a wrapped single byte nested in a list", function() {
++        assert.throws(() => {
++            // c2 8118: the wrapped byte appears as a list element
++            decodeRlp("0xc28118");
++        }, (error: any) => {
++            return (error.code === "INVALID_ARGUMENT" &&
++                error.message.match(/^non-canonical rlp/) &&
++                error.argument === "data")
++        });
++    });
++
++    it ("correctly decodes a wrapped byte at or above 0x80", function() {
++        // Bytes >= 0x80 cannot be encoded as themselves, so the
++        // string header is the canonical encoding for them
++        assert.equal(decodeRlp("0x8180"), "0x80");
++        assert.equal(decodeRlp("0x81ff"), "0xff");
++        assert.equal(decodeRlp("0x18"), "0x18");
++    });
+ });
+ 
+ /*
+diff --git a/src.ts/utils/rlp-decode.ts b/src.ts/utils/rlp-decode.ts
+index 330ba5c..666765e 100644
+--- a/src.ts/utils/rlp-decode.ts
++++ b/src.ts/utils/rlp-decode.ts
+@@ -78,6 +78,11 @@ function _decode(data: Uint8Array, offset: number): { consumed: number, result:
+         const length = unarrayifyInteger(data, offset + 1, lengthLength);
+         checkOffset(offset + 1 + lengthLength + length);
+ 
++        // A single byte below 0x80 is encoded as itself; wrapping it
++        // in a string header is a second, non-canonical encoding
++        assertArgument(length !== 1 || data[offset + 1 + lengthLength] >= 0x80,
++            "non-canonical rlp: single byte below 0x80 must be encoded as itself", "data", hexlify(data));
++
+         const result = hexlify(data.slice(offset + 1 + lengthLength, offset + 1 + lengthLength + length));
+         return { consumed: (1 + lengthLength + length), result: result }
+ 
+@@ -85,6 +90,9 @@ function _decode(data: Uint8Array, offset: number): { consumed: number, result:
+         const length = data[offset] - 0x80;
+         checkOffset(offset + 1 + length);
+ 
++        assertArgument(length !== 1 || data[offset + 1] >= 0x80,
++            "non-canonical rlp: single byte below 0x80 must be encoded as itself", "data", hexlify(data));
++
+         const result = hexlify(data.slice(offset + 1, offset + 1 + length));
+         return { consumed: (1 + length), result: result }
+     }
+-- 
+2.43.0
+
