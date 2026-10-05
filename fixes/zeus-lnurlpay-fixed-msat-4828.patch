@@ -1,0 +1,169 @@
+diff --git a/views/LnurlPay/LnurlPay.test.ts b/views/LnurlPay/LnurlPay.test.ts
+index 3f74c4c..423a657 100644
+--- a/views/LnurlPay/LnurlPay.test.ts
++++ b/views/LnurlPay/LnurlPay.test.ts
+@@ -35,7 +35,7 @@ jest.mock('../../utils/LnurlPayUtils', () => ({
+     verifyLnurlPayInvoice: jest.fn(),
+     isLnurlCallbackAllowed: jest.fn()
+ }));
+-jest.mock('react-native-blob-util', () => ({}));
++jest.mock('react-native-blob-util', () => ({ fetch: jest.fn() }));
+ jest.mock('react-native-gesture-handler', () => ({ ScrollView: 'ScrollView' }));
+ jest.mock('../../components/Amount', () => 'Amount');
+ jest.mock('../../components/AmountInput', () => 'AmountInput');
+@@ -50,9 +50,12 @@ jest.mock('../../models/Contact', () => class Contact {});
+ 
+ import * as React from 'react';
+ import { Alert } from 'react-native';
++import ReactNativeBlobUtil from 'react-native-blob-util';
+ import LnurlPay from './LnurlPay';
+ import Amount from '../../components/Amount';
+ import AmountInput from '../../components/AmountInput';
++import Button from '../../components/Button';
++import { isLnurlCallbackAllowed } from '../../utils/LnurlPayUtils';
+ import { unitsStore } from '../../stores/Stores';
+ 
+ const FIXED_SATS = 12618;
+@@ -361,3 +364,98 @@ describe('LnurlPay with invalid lnurlParams', () => {
+         expect(view.props.navigation.goBack).toHaveBeenCalledTimes(1);
+     });
+ });
++
++describe('LnurlPay fixed amounts that are not whole sats', () => {
++    const fetchMock = ReactNativeBlobUtil.fetch as jest.Mock;
++    let alertSpy: jest.SpyInstance;
++
++    const lnurlParamsMsat = (msat: number) => ({
++        domain: 'example.com',
++        callback: 'https://example.com/callback',
++        minSendable: msat,
++        maxSendable: msat,
++        metadata: JSON.stringify([['text/plain', 'test']]),
++        commentAllowed: 0
++    });
++
++    // sendValues on a view that was never mounted: apply setState to the
++    // state object directly, like the focus test above
++    const makeSendableView = (msat: number) => {
++        const view = makeView({ lnurlParams: lnurlParamsMsat(msat) });
++        jest.spyOn(view, 'setState').mockImplementation((update: any) => {
++            view.state = {
++                ...view.state,
++                ...(typeof update === 'function' ? update(view.state) : update)
++            };
++        });
++        return view;
++    };
++
++    // Press Confirm and return the amount the callback was called with.
++    // The mocked fetch answers with an error envelope, so the flow stops
++    // right after the callback request.
++    const callbackAmount = async (view: LnurlPay) => {
++        fetchMock.mockResolvedValue({
++            json: () => ({ status: 'ERROR', reason: 'stop here' }),
++            text: () => 'stop here'
++        });
++        const button = findByType(view.render(), Button);
++        expect(button.props.disabled).toBeFalsy();
++        await button.props.onPress();
++        // flush the fetch promise chain
++        await new Promise((resolve) => setImmediate(resolve));
++        await new Promise((resolve) => setImmediate(resolve));
++        expect(fetchMock).toHaveBeenCalledTimes(1);
++        const calledUrl = fetchMock.mock.calls[0][1] as string;
++        const match = calledUrl.match(/[?&]amount=([^&]*)/);
++        expect(match).not.toBeNull();
++        return decodeURIComponent(match![1]);
++    };
++
++    beforeEach(() => {
++        fetchMock.mockReset();
++        (isLnurlCallbackAllowed as jest.Mock).mockReturnValue({ ok: true });
++        alertSpy = jest
++            .spyOn(Alert, 'alert')
++            .mockImplementation(() => undefined);
++    });
++
++    afterEach(() => {
++        alertSpy.mockRestore();
++    });
++
++    it('keeps the msat precision of a fixed amount in state', () => {
++        const view = makeSendableView(12618500);
++
++        expect(view.state.satAmount).toBe(12618.5);
++        expect(view.state.amount).toBe('12618.5');
++    });
++
++    it('sends a fixed 12618500 msat request as 12618500, not 12618000', async () => {
++        const view = makeSendableView(12618500);
++
++        await expect(callbackAmount(view)).resolves.toBe('12618500');
++    });
++
++    it('sends a fixed 1001 msat request as 1001, not 1000', async () => {
++        const view = makeSendableView(1001);
++
++        expect(view.state.satAmount).toBe(1.001);
++        await expect(callbackAmount(view)).resolves.toBe('1001');
++    });
++
++    it('can send a fixed 500 msat request at all', async () => {
++        const view = makeSendableView(500);
++
++        expect(view.state.satAmount).toBe(0.5);
++        await expect(callbackAmount(view)).resolves.toBe('500');
++    });
++
++    it('still sends a fixed whole-sat request unchanged', async () => {
++        const view = makeSendableView(12618000);
++
++        expect(view.state.satAmount).toBe(FIXED_SATS);
++        expect(view.state.amount).toBe('12618');
++        await expect(callbackAmount(view)).resolves.toBe('12618000');
++    });
++});
+diff --git a/views/LnurlPay/LnurlPay.tsx b/views/LnurlPay/LnurlPay.tsx
+index 3926cea..66a6efd 100644
+--- a/views/LnurlPay/LnurlPay.tsx
++++ b/views/LnurlPay/LnurlPay.tsx
+@@ -199,8 +199,6 @@ export default class LnurlPay extends React.Component<
+             resetUnits();
+         }
+ 
+-        const minSendableSats = Math.floor(lnurl.minSendable / 1000);
+-
+         let finalAmount: string;
+         let finalSatAmount: string | number;
+         let fiatError: string | undefined;
+@@ -213,8 +211,14 @@ export default class LnurlPay extends React.Component<
+             // keeps the prefill correct whether or not resetUnits() above has
+             // run, so the value and the unit the input renders in are decided
+             // here and not by the global unit.
+-            finalAmount = getRawAmountFromSats(minSendableSats, 'sats').amount;
+-            finalSatAmount = minSendableSats;
++            // minSendable is in msat and is not always a whole number of
++            // sats: keep the exact value, fractional sats included. Flooring
++            // here asked the callback for less than minSendable, and a
++            // fixed amount under 1000 msat floored to 0, which disabled
++            // Confirm and made the request unpayable.
++            const fixedAmountSats = lnurl.minSendable / 1000;
++            finalAmount = getRawAmountFromSats(fixedAmountSats, 'sats').amount;
++            finalSatAmount = fixedAmountSats;
+         } else if (satAmount && satAmount != 0) {
+             // If satAmount is provided, always derive display amount from it
+             // (ignore any `amount` param as it may be in a different unit)
+@@ -285,9 +289,10 @@ export default class LnurlPay extends React.Component<
+ 
+         const u = url.parse(lnurl.callback);
+         const qs = querystring.parse(u.query);
+-        qs.amount = Number(
+-            (parseFloat(satAmount.toString()) * 1000).toString()
+-        );
++        // satAmount can carry msat precision (a fixed request that is not
++        // a whole number of sats): round to the nearest msat so float
++        // error (1.001 sats * 1000 = 1000.999...) never reaches the callback
++        qs.amount = Math.round(parseFloat(satAmount.toString()) * 1000);
+         // The exact msat we asked for; the returned invoice must match it.
+         const requestedAmountMsat = qs.amount;
+         qs.comment = comment;
