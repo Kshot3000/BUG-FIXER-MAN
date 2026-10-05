@@ -1,0 +1,121 @@
+From ef0524f390aeb6120675e332709d3e6378f01def Mon Sep 17 00:00:00 2001
+From: Kshot3000 <kshot9000@gmail.com>
+Date: Mon, 5 Oct 2026 02:13:52 +0000
+Subject: [PATCH] fix(protocol-kit): keep TransactionOptions.nonce 0 when
+ converting execution options
+
+createTxOptions and createLegacyTxOptions guarded the nonce with a
+truthiness check, dropping an explicit nonce of 0 (valid for fresh
+signers and local/dev chains). Guard on undefined instead.
+
+Adds unit tests covering nonce 0 / non-zero / omitted for both
+converters and for convertTransactionOptions dispatch. Fixes #1425.
+---
+ .changeset/tx-options-nonce-zero.md           |  5 ++
+ .../src/utils/transactions/utils.ts           |  4 +-
+ .../tests/unit/tx-options.test.ts             | 59 +++++++++++++++++++
+ 3 files changed, 66 insertions(+), 2 deletions(-)
+ create mode 100644 .changeset/tx-options-nonce-zero.md
+ create mode 100644 packages/protocol-kit/tests/unit/tx-options.test.ts
+
+diff --git a/.changeset/tx-options-nonce-zero.md b/.changeset/tx-options-nonce-zero.md
+new file mode 100644
+index 00000000..37b5db25
+--- /dev/null
++++ b/.changeset/tx-options-nonce-zero.md
+@@ -0,0 +1,5 @@
++---
++'@safe-global/protocol-kit': patch
++---
++
++Keep an explicit `TransactionOptions.nonce` of `0` when converting execution options. `createTxOptions` and `createLegacyTxOptions` guarded the nonce with a truthiness check, so a caller-supplied nonce of `0` (a valid nonce for a fresh signer or a local/dev chain) was silently dropped and the wallet/provider picked the nonce instead.
+diff --git a/packages/protocol-kit/src/utils/transactions/utils.ts b/packages/protocol-kit/src/utils/transactions/utils.ts
+index 6539d3f4..4982f6a0 100644
+--- a/packages/protocol-kit/src/utils/transactions/utils.ts
++++ b/packages/protocol-kit/src/utils/transactions/utils.ts
+@@ -285,7 +285,7 @@ export function createLegacyTxOptions(
+     converted.gasPrice = BigInt(options.gasPrice)
+   }
+ 
+-  if (options?.nonce) {
++  if (options?.nonce !== undefined) {
+     converted.nonce = options.nonce
+   }
+ 
+@@ -310,7 +310,7 @@ export function createTxOptions(options?: TransactionOptions): Partial<WalletTra
+     converted.maxPriorityFeePerGas = BigInt(options.maxPriorityFeePerGas)
+   }
+ 
+-  if (options?.nonce) {
++  if (options?.nonce !== undefined) {
+     converted.nonce = options.nonce
+   }
+ 
+diff --git a/packages/protocol-kit/tests/unit/tx-options.test.ts b/packages/protocol-kit/tests/unit/tx-options.test.ts
+new file mode 100644
+index 00000000..e0140385
+--- /dev/null
++++ b/packages/protocol-kit/tests/unit/tx-options.test.ts
+@@ -0,0 +1,59 @@
++import chai from 'chai'
++import {
++  convertTransactionOptions,
++  createLegacyTxOptions,
++  createTxOptions
++} from '@safe-global/protocol-kit/utils'
++
++describe('Transaction options conversion', () => {
++  describe('createTxOptions (EIP-1559)', () => {
++    it('should keep an explicit nonce of 0', () => {
++      const converted = createTxOptions({ nonce: 0 })
++      chai.expect(converted.nonce).to.be.equal(0)
++    })
++
++    it('should keep a non-zero nonce', () => {
++      const converted = createTxOptions({ nonce: 7 })
++      chai.expect(converted.nonce).to.be.equal(7)
++    })
++
++    it('should omit the nonce when it is not provided', () => {
++      const converted = createTxOptions({})
++      chai.expect(converted).to.not.have.property('nonce')
++    })
++
++    it('should omit the nonce when no options are provided', () => {
++      const converted = createTxOptions(undefined)
++      chai.expect(converted).to.not.have.property('nonce')
++    })
++  })
++
++  describe('createLegacyTxOptions', () => {
++    it('should keep an explicit nonce of 0', () => {
++      const converted = createLegacyTxOptions({ nonce: 0, gasPrice: '1000000000' })
++      chai.expect(converted.nonce).to.be.equal(0)
++    })
++
++    it('should keep a non-zero nonce', () => {
++      const converted = createLegacyTxOptions({ nonce: 3, gasPrice: '1000000000' })
++      chai.expect(converted.nonce).to.be.equal(3)
++    })
++
++    it('should omit the nonce when it is not provided', () => {
++      const converted = createLegacyTxOptions({ gasPrice: '1000000000' })
++      chai.expect(converted).to.not.have.property('nonce')
++    })
++  })
++
++  describe('convertTransactionOptions', () => {
++    it('should keep an explicit nonce of 0 for EIP-1559 transactions', () => {
++      const converted = convertTransactionOptions({ nonce: 0, maxFeePerGas: '2000000000' })
++      chai.expect(converted.nonce).to.be.equal(0)
++    })
++
++    it('should keep an explicit nonce of 0 for legacy transactions', () => {
++      const converted = convertTransactionOptions({ nonce: 0, gasPrice: '1000000000' })
++      chai.expect(converted.nonce).to.be.equal(0)
++    })
++  })
++})
+-- 
+2.43.0
+
