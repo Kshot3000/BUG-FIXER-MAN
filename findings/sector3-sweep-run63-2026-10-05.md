@@ -1,0 +1,15 @@
+# Sector 3 sweep — run 63 (2026-10-05 ~08:33 CDT)
+
+Sector: (3) paid bounty platforms & paid GitHub issues. 13th consecutive dry check — no submission, nothing verified to submit.
+
+## Status watch (changes vs run 62)
+- **wevm/viem PR #5189 CI final state (same run 37314872115):** run 62 captured it mid-flight (1 Test Local FAILURE + 3 cancelled). Final state: ALL `Test Local (transport: http, …)` shards FAILURE (~2m each — anvil-fork setup class against public RPCs), while every other check passes: all Tempo local/deployed suites, Test Environments (bun/next/node/tsc/vite), Check, Build, Types, Vectors, Publish, Size, Socket. Comments still 3 bots only (Vercel/changeset/pkg-pr-new, latest 13:15Z pkg-pr-new); 0 reviews, no maintainer feedback. No diagnosis ties the failures to the SES namespace fix (which touches token/tempo action definitions, not the failing fork harness), so per the standing rule: no comment, keep watching for a maintainer re-run/flip.
+- Everything else unchanged: 24 BUG FIXER MAN PRs open; Expensify counts 55/35/38/28 (the #101684 13:15–13:16Z activity is the catcatboy-cyber competitor already logged in run 62 — no C+ response, assignment, or hire on any of the four); AppKit #5813 5 comments, CTA still stale FAILURE; NiceGUI #6372 reviews unchanged (evnchn COMMENTED + DISMISSED) awaiting re-review; vyper #5294 reviews unchanged; ESLint #21155 labels bug/repro:yes, no `accepted`, 10 comments; scure-btc-signer #144 remains closed by paulmillr with Kyle's own reply awaiting response. HackerOne: ledger-only (no logged-in check this run).
+
+## Hunt
+- **Expensify/App Help Wanted:** newest is still #102742 (2026-10-01, Sentry FragmentManager, Android) — no new paid issues in 4+ days. Spot-checked the three newest un-proposed candidates: #102742 (22 comments, ~7 competing proposers incl. camesenin ×2), #102633 (36 comments, ~10 proposers), #102525 (69 comments, ~10 proposers). All crowded fields with no contributor assigned; posting another proposal without a privately verified root cause would violate the quality gate. The four live $250 proposals remain the Expensify position.
+- **Opire:** exactly the same 5 rewards platform-wide ($100 bugb #1 closed test issue; $42 rencfs Windows research 2024; $30 trovu, 23 claimers; $20 UdioWrapper hCaptcha-solving — out of scope; $20 kiai level-up images). No change.
+- **Bounty-label search (last 7 days):** relayhop/sn-monetization-runtime radar spam, Ikalus1988/MisakaNet lesson bounties, sheepishgoat/GS13 #616 art commission (rejected run 58). One new hit — zhangjiayang6835-cyber/bounty-plaza #1728, a $1,000 mirror of tenstorrent/tt-metal #58986 (FP32 ttnn.cumsum NaN after inf): REJECTED — unverified aggregator funder (115-fork spam-mirror repo), and success requires Blackhole/Wormhole hardware + device-profiler measurements, not verifiable in this sandbox.
+- **"Paid Bounty" label:** only crhy/OpenAirShips #8 (stale UE5 milestone, rejected run 58).
+
+No payment requested, none received ($0 / $0). Next run: sector (4) general company OSS / dev tools.
