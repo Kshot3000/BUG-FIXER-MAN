@@ -1,0 +1,85 @@
+From 20c7a43170eddddf9c6035d4f88cf2f62b093c18 Mon Sep 17 00:00:00 2001
+From: Kshot3000 <kshot9000@gmail.com>
+Date: Mon, 5 Oct 2026 04:41:58 +0000
+Subject: [PATCH] fix(encoding): return error instead of panicking on
+ overflowing RLP payload length in getNextTx
+
+The long-form branch of getNextTx read the RLP payload length as uint64
+and narrowed it to int for the bounds check and the slice. A declared
+length >= 2^63 narrows to a negative int (and lengths near 2^63 wrap in
+the header-plus-length addition), bypassing the bounds check and
+panicking with 'slice bounds out of range'.
+
+Compare the declared length against the remaining input without
+narrowing first, and return errSmallLength when it exceeds the
+available bytes, as suggested in #71.
+
+Adds TestGetNextTxPayloadLengthOverflow covering payload lengths of
+2^63, math.MaxUint64, 2^63-1, and a plain over-length declaration; the
+first three panic on the unpatched code.
+---
+ encoding/da.go      |  8 +++++++-
+ encoding/da_test.go | 31 +++++++++++++++++++++++++++++++
+ 2 files changed, 38 insertions(+), 1 deletion(-)
+
+diff --git a/encoding/da.go b/encoding/da.go
+index 9029247..2baf59e 100644
+--- a/encoding/da.go
++++ b/encoding/da.go
+@@ -755,7 +755,13 @@ func getNextTx(bytes []byte, index int) (*types.Transaction, int, error) {
+ 		}
+ 		payloadLen := binary.BigEndian.Uint64(lenBytes)
+ 
+-		if length < index+1+lenPayloadLen+int(payloadLen) {
++		// compare without narrowing payloadLen to int first: the narrowed
++		// value can overflow (negative for values >= 2^63, or wrap around
++		// in the addition), which would bypass the bounds check and panic
++		// on the slice below. The header length is already known to fit
++		// (checked above), so the subtraction cannot underflow, and after
++		// this check payloadLen fits in an int.
++		if payloadLen > uint64(length-index-1-lenPayloadLen) {
+ 			return nil, 0, errSmallLength
+ 		}
+ 		txBytes = append(txBytes, bytes[index:index+1+lenPayloadLen+int(payloadLen)]...)
+diff --git a/encoding/da_test.go b/encoding/da_test.go
+index e2eb004..7700bd2 100644
+--- a/encoding/da_test.go
++++ b/encoding/da_test.go
+@@ -245,3 +245,34 @@ func TestTxsToTxsData_L1Message(t *testing.T) {
+ 
+ 	require.Equal(t, tx.Hash(), types.NewTx(decoded).Hash())
+ }
++
++func TestGetNextTxPayloadLengthOverflow(t *testing.T) {
++	testCases := []struct {
++		name string
++		hex  string
++	}{
++		// long-form header 0xff: length-of-length is 8, declared payload
++		// length is 2^63 -- narrowing it to int yields a negative value.
++		{name: "payload length 2^63", hex: "ff8000000000000000"},
++		// declared payload length is math.MaxUint64.
++		{name: "payload length max uint64", hex: "ffffffffffffffffff"},
++		// declared payload length is 2^63 - 1: fits in an int, but the
++		// header-plus-length addition overflows int64.
++		{name: "payload length 2^63-1", hex: "ff7fffffffffffffff"},
++		// short length-of-length (1 byte) declaring 100 payload bytes
++		// with no payload present.
++		{name: "declared length exceeds input", hex: "f864"},
++	}
++
++	for _, tc := range testCases {
++		t.Run(tc.name, func(t *testing.T) {
++			raw, err := hex.DecodeString(tc.hex)
++			require.NoError(t, err)
++
++			require.NotPanics(t, func() {
++				_, _, err = getNextTx(raw, 0)
++				require.ErrorIs(t, err, errSmallLength)
++			})
++		})
++	}
++}
+-- 
+2.43.0
+
