@@ -60,3 +60,10 @@ proposals unchanged (comment counts 55 / 35 / 33 / 28 — no C+ response,
 assignment, or hire); ESLint #21155 still has no `accepted` label;
 stellar #1734 and PyBNF #931 still carry only our report comments.
 $0 received to date; nothing requested this run.
+
+## Addendum (late-arriving sweep tail, checked same run)
+
+- **dgraph-io/badger #2344** (DropPrefix/DropAll deadlock) — already PR'd: #2346.
+- **charmbracelet/bubbletea #1838** (DECST8C tab stops after resize) — already PR'd: #1839.
+- **dgraph-io/badger #2342** (TTL-expired data in last level never reclaimed) — no competing PR, but it is long-standing LSM compaction behavior/design, not a clean verifiable small fix; deprioritized.
+- **charmbracelet/lipgloss #749** (v2 init runs `tmux info`) — no competing PR; fix is a lazy-initialization design change in a v2 pre-release API — maintainer territory.
