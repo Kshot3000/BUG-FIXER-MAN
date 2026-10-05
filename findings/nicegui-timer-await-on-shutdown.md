@@ -2,7 +2,7 @@
 
 - **Project:** NiceGUI (zauberzeug/nicegui)
 - **Issue:** https://github.com/zauberzeug/nicegui/issues/6331 (filed 2026-09-10, 0 comments, unassigned, no competing PR for the Timer path)
-- **PR:** https://github.com/zauberzeug/nicegui/pull/6372 — OPEN / MERGEABLE (2026-10-04, run 25)
+- **PR:** https://github.com/zauberzeug/nicegui/pull/6372 — OPEN / MERGEABLE, **APPROVED by maintainer evnchn 2026-10-05T06:36Z** (run 38). Review loop: evnchn's required context fix (`background_tasks.create(..., context=self._get_context())`) applied in 7534417; the `cancel(with_current_invocation=True)` question was left unchanged as a maintainer call; evnchn approved that head and optionally suggested a context regression test — deliberately NOT pushed post-approval (a new push could dismiss the approval; add it only if the PR sits unmerged or the maintainer asks).
 - **Payment:** none posted on the issue; fix offered freely, tips welcome. **$0 requested, $0 received.**
 - **Branch:** `Kshot3000/nicegui@fix/6331-timer-await-on-shutdown` (096b0ec)
 
