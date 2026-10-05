@@ -40,7 +40,7 @@ Error shape matches the repo's conventions and the sibling fix in flight: `INVAL
 
 - 3 regression tests added to the "Test bad RLP Data" block in `src.ts/_tests/test-rlp.ts` (top-level witness, nested witness, canonical wrapped-byte controls ≥ 0x80).
 - RLP suite: **130/130 passing** patched (127 baseline + 3 new).
-- Downstream regression: `test-transaction` (canonical raw-transaction RLP parsing) — 1,000+ cases run locally with zero failures; the full suite is long-running in this sandbox, so CI is authoritative for the complete run (stated in the PR).
+- Downstream regression: `test-transaction` (canonical raw-transaction RLP parsing) — **51,717 passing, 0 failing**, full suite run locally to completion (5m; it outlasted two earlier bounded sampling runs, which is why the PR originally said "CI authoritative" — the PR body was updated once the full result landed).
 - Patch: `fixes/ethers-rlp-single-byte-noncanonical.patch`.
 
 ## Same-run rejects (sector 1)
