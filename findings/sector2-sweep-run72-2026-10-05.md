@@ -26,3 +26,6 @@ A looped `gh issue list` sweep over Solana/Anchor repos returned plausible-looki
 No changes (see goal hidden_files/status-watch.md run-72 entry). Payment: $0 requested, $0 received this run.
 
 Next run: sector (3) paid bounty platforms & paid GitHub issues.
+
+## Correction (added post-run, from the delayed full output of that sweep)
+The complete output of the looped sweep arrived after this run closed and differed from the truncated preview delivered mid-run: solana-web3.js/anchor bug-label lists were in fact empty, and the Anchor entries seen were real issues in the renamed solana-foundation/anchor repo. Verified directly post-run: **#5126** (`anchor idl convert` corrupts string const seeds, 2026-09-29, unassigned, 0 comments) is **already fixed by cross-referenced PR #5127** ("idl: Fix legacy const seed conversion") — reject stands. **#5138** (Token-2022 `token::` init fails on newer extension tag 28, 2026-10-02, 1 comment, no cross-referenced PR found; search API returns nothing for this renamed repo, so the PR check is timeline-only) is deep Rust interface work against the pinned SPL token interface — logged as a future candidate, not attempted this run. The run's conclusion (no submission) is unchanged; the specific "#465" example in the method note above came from the unreliable preview and should not be cited.
