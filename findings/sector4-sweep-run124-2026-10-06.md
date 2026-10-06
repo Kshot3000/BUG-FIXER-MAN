@@ -20,3 +20,6 @@ No changes. All open PRs direct REST-verified identical to run 123: dentalpin #5
 
 ## Payment
 $0 requested, $0 received.
+
+## Correction (same run, from the completed watch output)
+The initial watch pass was still running when the sweep began and its result landed after the summary above was written. It shows one real change the "no changes" line missed: **TriliumNext/Trilium PR #11920 CLOSED unmerged** at 2026-10-06T10:16:24Z by maintainer eliandoran — "Thank you for the effort but we'll handle it in #11921." Comments 1→2 (the closing comment; the other is the greptile bot summary). No reply sent (closed PR, no arguing). All other watch items in that output match the no-change summary exactly, including Expensify 60/42/30/38.
