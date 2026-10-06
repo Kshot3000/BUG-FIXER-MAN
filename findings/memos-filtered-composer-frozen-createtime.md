@@ -32,3 +32,15 @@ Deliberately out of scope (stated in the PR): the issue's design question — wh
 ## Watch (run 110)
 
 NO changes: all PR states direct-verified identical to run 109 (dentalpin #599 / type-coverage #155 MERGED known; ERCs #2045, cake #3671, electrum #11012/#11013, ansible #87642, NiceGUI #6372 with evnchn APPROVED standing, vyper #5294, vikunja #4107/#4110, socket-plugs #162, gitea #39611, payload #18509, chatwoot #16130, gofactory #67 all OPEN, counts unchanged). Expensify identical: #102072 60, #101684 42, #102044 30, #102226 38 — no selection/hire, no melvin-bot prompt to Kshot3000. HackerOne: ledger-only. **NEW watch item: memos PR #6435.**
+
+## Follow-up (run 112, 2026-10-06)
+
+CodeRabbit reviewed PR #6435 (COMMENTED, 07:01Z) with one valid minor
+catch: `setHours` was called without the milliseconds argument, so a
+re-stamped time kept the default date's milliseconds and two saves
+within the same second could still share one timestamp. Fixed in
+commit 26e8253 (pushed to the PR branch, PR head verified): both
+`withTimeOfDay` and `deriveDefaultCreateTimeFromDate` now pass
+`now.getMilliseconds()`, plus a regression test for two saves in the
+same second — file suite 13/13. Noted on the PR
+(comment 6011403793).
