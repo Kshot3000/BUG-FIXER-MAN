@@ -1,0 +1,16 @@
+diff --git a/tsc/internal/binder/binder.go b/tsc/internal/binder/binder.go
+index adf0b17a..23b973f7 100644
+--- a/tsc/internal/binder/binder.go
++++ b/tsc/internal/binder/binder.go
+@@ -946,6 +946,11 @@ func (b *Binder) setCommonJSModuleIndicator(node *ast.Node) bool {
+ 
+ func (b *Binder) bindClassLikeDeclaration(node *ast.Node) {
+ 	name := node.Name()
++	if node.Flags&ast.NodeFlagsAmbient == 0 {
++		// It is a SyntaxError if the identifier eval or arguments appears as the name of a
++		// ClassDeclaration or ClassExpression; class code is always strict mode code (13.1, 11.2.2)
++		b.checkStrictModeEvalOrArguments(node, name)
++	}
+ 	switch node.Kind {
+ 	case ast.KindClassDeclaration:
+ 		b.bindBlockScopedDeclaration(node, ast.SymbolFlagsClass, ast.SymbolFlagsClassExcludes)
